@@ -17,7 +17,12 @@ extern char end[]; // first address after kernel loaded from ELF file
 int
 main(void)
 {
+  // 初始化一些设备和子系统
+
+  // 物理内存分配器用映射到高内存区域的虚拟地址找到对应的物理页，而非物理地址
+  // kinit1 分配 2GB+end ~ 2GB+4MB 的不需要锁的内存，kinit2 分配 2GB+4MB ~ 2GB+224MB 的内存
   kinit1(end, P2V(4*1024*1024)); // phys page allocator
+  // 创建并切换到一个内核运行所需的页表中
   kvmalloc();      // kernel page table
   mpinit();        // detect other processors
   lapicinit();     // interrupt controller
@@ -27,13 +32,17 @@ main(void)
   consoleinit();   // console hardware
   uartinit();      // serial port
   pinit();         // process table
+  // 设置中断描述符表（Interrupt Descriptor Table，IDT）
   tvinit();        // trap vectors
   binit();         // buffer cache
   fileinit();      // file table
   ideinit();       // disk 
   startothers();   // start other processors
+
   kinit2(P2V(4*1024*1024), P2V(PHYSTOP)); // must come after startothers()
+  // 初始化（设置）第一个进程
   userinit();      // first user process
+  // 运行第一个进程
   mpmain();        // finish this processor's setup
 }
 

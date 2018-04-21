@@ -12,7 +12,10 @@
 start:
   cli                         # BIOS enabled interrupts; disable
 
+ # 8086 -> 80286 -> 80386
+ 
   # Zero data segment registers DS, ES, and SS.
+  # **mov %src %dest** (AT&T Syntax)
   xorw    %ax,%ax             # Set %ax to zero
   movw    %ax,%ds             # -> Data Segment
   movw    %ax,%es             # -> Extra Segment
@@ -62,6 +65,7 @@ start32:
   movw    %ax, %gs                # -> GS
 
   # Set up the stack pointer and call into C.
+  # 设置完 esp 后可以开始调用 C 代码了
   movl    $start, %esp
   call    bootmain
 

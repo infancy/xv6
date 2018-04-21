@@ -5,6 +5,7 @@
 #include "fcntl.h"
 
 // Parsed command representation
+// cmd->type 的类型
 #define EXEC  1
 #define REDIR 2
 #define PIPE  3
@@ -16,6 +17,8 @@
 struct cmd {
   int type;
 };
+// (struct xx-cmd*)cmd
+
 
 struct execcmd {
   int type;
@@ -32,6 +35,8 @@ struct redircmd {
   int fd;
 };
 
+// cat < input.txt
+// (echo hello; echo world) > output.txt
 struct pipecmd {
   int type;
   struct cmd *left;
@@ -97,12 +102,16 @@ runcmd(struct cmd *cmd)
     runcmd(lcmd->right);
     break;
 
+  // 子进程创建一个管道连接管道的左右两端。
+  // 然后它为管道左右两端都调用 runcmd，然后通过两次 wait 等待左右两端结束。
   case PIPE:
     pcmd = (struct pipecmd*)cmd;
     if(pipe(p) < 0)
       panic("pipe");
+    // left(write) >> right(read)
     if(fork1() == 0){
       close(1);
+      // 拷贝到 1 号描述符
       dup(p[1]);
       close(p[0]);
       close(p[1]);
@@ -157,6 +166,7 @@ main(void)
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
+    // cd 必须由父进程执行
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Chdir must be called by the parent, not the child.
       buf[strlen(buf)-1] = 0;  // chop \n
@@ -164,6 +174,7 @@ main(void)
         printf(2, "cannot cd %s\n", buf+3);
       continue;
     }
+    // 执行其它命令
     if(fork1() == 0)
       runcmd(parsecmd(buf));
     wait();
@@ -330,6 +341,7 @@ parsecmd(char *s)
   char *es;
   struct cmd *cmd;
 
+  // end of string
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");

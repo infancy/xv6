@@ -26,4 +26,5 @@ swtch:
   popl %esi
   popl %ebx
   popl %ebp
+  # 最后的 ret（2727）指令从栈中弹出目标进程的 %eip，从而结束上下文切换工作。
   ret

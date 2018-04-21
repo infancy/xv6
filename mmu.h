@@ -78,6 +78,7 @@ struct segdesc {
   (uint)(lim) >> 16, 0, 0, 1, 0, (uint)(base) >> 24 }
 #endif
 
+// 特权级别 3，一般为用户模式
 #define DPL_USER    0x3     // User DPL
 
 // Application segment type bits
@@ -102,6 +103,7 @@ struct segdesc {
 #define STS_IG32    0xE     // 32-bit Interrupt Gate
 #define STS_TG32    0xF     // 32-bit Trap Gate
 
+// 页目录（初级页表），页表（次级页表）
 // A virtual address 'la' has a three-part structure as follows:
 //
 // +--------10------+-------10-------+---------12----------+
@@ -110,6 +112,7 @@ struct segdesc {
 // +----------------+----------------+---------------------+
 //  \--- PDX(va) --/ \--- PTX(va) --/
 
+// PDX、PTX 分别得到 最高 10 位，中间 10 位
 // page directory index
 #define PDX(va)         (((uint)(va) >> PDXSHIFT) & 0x3FF)
 
@@ -128,9 +131,13 @@ struct segdesc {
 #define PTXSHIFT        12      // offset of PTX in a linear address
 #define PDXSHIFT        22      // offset of PDX in a linear address
 
+// page_round_up/down
+// 分布向上、下按 4096 取整
+// PGROUNDUP(4097) -> 8182, PGROUNDDOWN(4097) -> 4096
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
+// 页表中每一项 0~11 的标志位
 // Page table/directory entry flags.
 #define PTE_P           0x001   // Present
 #define PTE_W           0x002   // Writeable
@@ -142,6 +149,7 @@ struct segdesc {
 #define PTE_PS          0x080   // Page Size
 #define PTE_MBZ         0x180   // Bits must be zero
 
+// 分别得到高 20 位和低 12 位
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
 #define PTE_FLAGS(pte)  ((uint)(pte) &  0xFFF)

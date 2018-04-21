@@ -4,6 +4,17 @@
 
 char buf[512];
 
+// cat < input.txt 
+// 在 fork 后 exec 前，通过文件描述符来进行 IO 重定向
+// char *argv[2];
+// argv[0] = "cat";
+// ### argv[1] = 0;
+// if(fork() == 0) {
+//     close(0);
+//     open("input.txt", O_RDONLY);
+//     exec("cat", argv);
+// }
+
 void
 cat(int fd)
 {

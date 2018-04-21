@@ -35,10 +35,12 @@ exec(char *path, char **argv)
   if(elf.magic != ELF_MAGIC)
     goto bad;
 
+  // 先建立虚拟内存
   if((pgdir = setupkvm()) == 0)
     goto bad;
 
   // Load program into memory.
+  // sz 代表了虚拟用户空间的增长
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -63,9 +65,11 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
+  // 继续分配两页内存
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
+
   sp = sz;
 
   // Push argument strings, prepare rest of stack in ustack.
@@ -75,6 +79,7 @@ exec(char *path, char **argv)
     sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
     if(copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;
+    // 先将所有参数地址暂存在 ustack 中，然后统一复制到栈上
     ustack[3+argc] = sp;
   }
   ustack[3+argc] = 0;

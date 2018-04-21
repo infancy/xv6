@@ -32,13 +32,16 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
+// 为一个虚拟地址寻找 PTE（地址）
 static pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
   pte_t *pgtab;
 
+  // 按数组方式寻址
   pde = &pgdir[PDX(va)];
+  // 如果 PDE 已存在，直接返回；否则创建一个 pgtab，设置 PDE，然后返回
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   } else {
@@ -49,6 +52,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
     // The permissions here are overly generous, but they can
     // be further restricted by the permissions in the page table
     // entries, if necessary.
+    // pgdir[PDX(va)] = ...
     *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
   }
   return &pgtab[PTX(va)];
@@ -57,23 +61,27 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
+// 建立一段虚拟内存到一段物理内存的映射
+// pde = elem of pgdir, pte = elem of pgtab
 static int
 mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 {
-  char *a, *last;
+  char *addr, *last;
   pte_t *pte;
 
-  a = (char*)PGROUNDDOWN((uint)va);
+  addr = (char*)PGROUNDDOWN((uint)va);
   last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
   for(;;){
-    if((pte = walkpgdir(pgdir, a, 1)) == 0)
+    // pte = &pgtab[PTX(va)];
+    if((pte = walkpgdir(pgdir, addr, 1)) == 0)
       return -1;
+    // 如果该地址已被使用
     if(*pte & PTE_P)
       panic("remap");
     *pte = pa | perm | PTE_P;
-    if(a == last)
+    if(addr == last)
       break;
-    a += PGSIZE;
+    addr += PGSIZE;
     pa += PGSIZE;
   }
   return 0;
@@ -103,6 +111,7 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 // This table defines the kernel's mappings, which are present in
 // every process's page table.
 static struct kmap {
+  // virtual memory address start, phys_start_end, permission flag
   void *virt;
   uint phys_start;
   uint phys_end;
@@ -115,9 +124,11 @@ static struct kmap {
 };
 
 // Set up kernel part of a page table.
+// 创建页目录，并设置内核部分的页表
 pde_t*
 setupkvm(void)
 {
+  // 先分配一页内存来放置**页目录**，然后调用 mappages 来建立内核需要的映射
   pde_t *pgdir;
   struct kmap *k;
 
@@ -129,6 +140,7 @@ setupkvm(void)
   for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
     if(mappages(pgdir, k->virt, k->phys_end - k->phys_start,
                 (uint)k->phys_start, k->perm) < 0) {
+      // 如果建立映射失败了，则释放掉 pgdir
       freevm(pgdir);
       return 0;
     }
@@ -141,6 +153,7 @@ void
 kvmalloc(void)
 {
   kpgdir = setupkvm();
+  // 切换到一个内核运行所需的页表中
   switchkvm();
 }
 
@@ -168,6 +181,7 @@ switchuvm(struct proc *p)
                                 sizeof(mycpu()->ts)-1, 0);
   mycpu()->gdt[SEG_TSS].s = 0;
   mycpu()->ts.ss0 = SEG_KDATA << 3;
+  // 将用户进程的内核栈顶地址存入任务段描述符中
   mycpu()->ts.esp0 = (uint)p->kstack + KSTACKSIZE;
   // setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
   // forbids I/O instructions (e.g., inb and outb) from user space
@@ -216,6 +230,9 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+// allocuvm 的 oldsz、newsz 光看实现不太好懂，看看这个函数是如何被调用的
+// 得知 oldsz 表示现在已分配的内存大小，allocuvm 会对 old ~ new 之间进行分配
+// deallocuvm 同理
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int

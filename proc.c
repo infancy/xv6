@@ -9,12 +9,14 @@
 
 struct {
   struct spinlock lock;
+  // **table of proc**
   struct proc proc[NPROC];
 } ptable;
 
 static struct proc *initproc;
 
 int nextpid = 1;
+
 extern void forkret(void);
 extern void trapret(void);
 
@@ -74,6 +76,7 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
+  // byte* sp;
   char *sp;
 
   acquire(&ptable.lock);
@@ -91,6 +94,8 @@ found:
 
   release(&ptable.lock);
 
+  // 参考 Figure1-3 了解内核栈的设置
+
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -98,6 +103,7 @@ found:
   }
   sp = p->kstack + KSTACKSIZE;
 
+  // 栈顶部保存用户寄存器
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
@@ -105,6 +111,7 @@ found:
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
+  // 记录的是函数指针
   *(uint*)sp = (uint)trapret;
 
   sp -= sizeof *p->context;
@@ -126,19 +133,26 @@ userinit(void)
   p = allocproc();
   
   initproc = p;
+  // 调用 setupkvm 为进程创建一个（最初）只映射内核区的页表
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
+  // 分配一页物理内存，将虚拟地址 0 映射到这一段内存，并把 initcode.S 拷贝到这一页中
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
+
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
   p->tf->es = p->tf->ds;
   p->tf->ss = p->tf->ds;
+
   p->tf->eflags = FL_IF;
+  // 栈指针 %esp 被设为了进程的最大有效虚拟内存，即 p->sz。
+  // 指令指针则指向初始化代码的入口点，即地址 0。
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
 
+  // mainly for debugging
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -146,6 +160,7 @@ userinit(void)
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
+  // 独占的赋值
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
@@ -340,9 +355,13 @@ scheduler(void)
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
+      // 
       switchuvm(p);
       p->state = RUNNING;
 
+      // 切换上下文到目标进程的内核线程中
+      // 通过 allocproc 里的设置，切换上下文后，cpu 首先执行 forkret，
+      // 然后开始执行 trapret（实际上是执行 initcode.S 里的代码）
       swtch(&(c->scheduler), p->context);
       switchkvm();
 

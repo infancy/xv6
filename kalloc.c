@@ -20,6 +20,7 @@ struct run {
 struct {
   struct spinlock lock;
   int use_lock;
+  // 表头
   struct run *freelist;
 } kmem;
 
@@ -56,6 +57,7 @@ freerange(void *vstart, void *vend)
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
+// 释放掉 v 指向的一页物理内存（并将其加入到 freelist 中）
 void
 kfree(char *v)
 {
@@ -69,6 +71,7 @@ kfree(char *v)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
+  // 将每页的第一个元素用来保存下一页的首地址
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
@@ -79,6 +82,7 @@ kfree(char *v)
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
+// 从 freelist 中分配一页内存（4096 bytes）
 char*
 kalloc(void)
 {
