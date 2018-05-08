@@ -7,6 +7,8 @@
 #include "mmu.h"
 #include "proc.h"
 
+// sys_xxx 用 argint，argptr 和 argstr 来解析参数，然后调用真正的实现
+
 int
 sys_fork(void)
 {

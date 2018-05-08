@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+# 在编译 xv6 前，先用 vector.pl 生成 vector.S 文件？？？
 # Generate vectors.S, the trap/interrupt entry points.
 # There has to be one entry point per interrupt number
 # since otherwise there's no way for trap() to discover

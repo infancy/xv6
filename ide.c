@@ -29,6 +29,7 @@
 // You must hold idelock while manipulating queue.
 
 static struct spinlock idelock;
+// buf 队列
 static struct buf *idequeue;
 
 static int havedisk1;
@@ -39,9 +40,10 @@ static int
 idewait(int checkerr)
 {
   int r;
-
+  // 等待 busy 位被清除，ready 位被设置
   while(((r = inb(0x1f7)) & (IDE_BSY|IDE_DRDY)) != IDE_DRDY)
     ;
+  // 如果要求检查并且存在错误
   if(checkerr && (r & (IDE_DF|IDE_ERR)) != 0)
     return -1;
   return 0;
@@ -53,9 +55,12 @@ ideinit(void)
   int i;
 
   initlock(&idelock, "ide");
+  // 打开多核处理器中最后一个核心的 IDE_IRQ 中断
   ioapicenable(IRQ_IDE, ncpu - 1);
+  // 等待磁盘接受命令
   idewait(0);
 
+  // 假设 disk 0 总是存在的
   // Check if disk 1 is present
   outb(0x1f6, 0xe0 | (1<<4));
   for(i=0; i<1000; i++){
@@ -70,6 +75,7 @@ ideinit(void)
 }
 
 // Start the request for b.  Caller must hold idelock.
+// 根据 flag 进行读或写操作
 static void
 idestart(struct buf *b)
 {
@@ -91,6 +97,7 @@ idestart(struct buf *b)
   outb(0x1f4, (sector >> 8) & 0xff);
   outb(0x1f5, (sector >> 16) & 0xff);
   outb(0x1f6, 0xe0 | ((b->dev&1)<<4) | ((sector>>24)&0x0f));
+  // 进行读操作还是写操作
   if(b->flags & B_DIRTY){
     outb(0x1f7, write_cmd);
     outsl(0x1f0, b->data, BSIZE/4);
@@ -100,6 +107,8 @@ idestart(struct buf *b)
 }
 
 // Interrupt handler.
+// 磁盘在完成操作后会发出一个中断，trap 会调用 ideintr 来处理它
+// 如果存在待处理的磁盘块，取出队首 buf 进行处理
 void
 ideintr(void)
 {
@@ -108,10 +117,13 @@ ideintr(void)
   // First queued buffer is the active request.
   acquire(&idelock);
 
+  // 取出队首的缓存块
+  // 当前没有缓存的磁盘块
   if((b = idequeue) == 0){
     release(&idelock);
     return;
   }
+  // 否则将指向队首的指针移向下一个 buf
   idequeue = b->qnext;
 
   // Read data if needed.
@@ -124,6 +136,7 @@ ideintr(void)
   wakeup(b);
 
   // Start disk on next buf in queue.
+  // 处理下一个 buf
   if(idequeue != 0)
     idestart(idequeue);
 
@@ -132,11 +145,13 @@ ideintr(void)
 
 //PAGEBREAK!
 // Sync buf with disk.
+
 // If B_DIRTY is set, write buf to disk, clear B_DIRTY, set B_VALID.
 // Else if B_VALID is not set, read buf from disk, set B_VALID.
 void
 iderw(struct buf *b)
 {
+  // 我们需要队尾 buf->qnext 的地址
   struct buf **pp;
 
   if(!holdingsleep(&b->lock))
@@ -159,6 +174,7 @@ iderw(struct buf *b)
     idestart(b);
 
   // Wait for request to finish.
+  // 在等待操作结束的过程中进行睡眠
   while((b->flags & (B_VALID|B_DIRTY)) != B_VALID){
     sleep(b, &idelock);
   }

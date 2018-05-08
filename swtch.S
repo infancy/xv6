@@ -8,6 +8,7 @@
 
 .globl swtch
 swtch:
+  # struct context **old, struct context *new
   movl 4(%esp), %eax
   movl 8(%esp), %edx
 
@@ -18,7 +19,9 @@ swtch:
   pushl %edi
 
   # Switch stacks
+  # 将当前 esp 保存在 *old 中
   movl %esp, (%eax)
+  # 设置新的 esp（即 new）
   movl %edx, %esp
 
   # Load new callee-save registers
@@ -26,5 +29,5 @@ swtch:
   popl %esi
   popl %ebx
   popl %ebp
-  # 最后的 ret（2727）指令从栈中弹出目标进程的 %eip，从而结束上下文切换工作。
+  # 最后的 ret（2727）指令从**栈中弹出目标进程的 %eip**，从而结束上下文切换工作。
   ret

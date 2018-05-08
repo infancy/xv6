@@ -10,6 +10,7 @@
 struct {
   struct spinlock lock;
   // **table of proc**
+  // 进程表
   struct proc proc[NPROC];
 } ptable;
 
@@ -160,7 +161,7 @@ userinit(void)
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
-  // 独占的赋值
+  // 独占的操作
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
@@ -355,20 +356,27 @@ scheduler(void)
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
-      // 
+      // 切换到该进程的页表
       switchuvm(p);
       p->state = RUNNING;
 
       // 切换上下文到目标进程的内核线程中
+
+      // 对于启动第一个线程来说
       // 通过 allocproc 里的设置，切换上下文后，cpu 首先执行 forkret，
       // 然后开始执行 trapret（实际上是执行 initcode.S 里的代码）
+
+      // 当从别的线程切换到 sheduler 时，就像是调度器调用的 swtch 返回了一样
+      // 调度器继续其 for 循环，找到一个进程来运行，切换到该进程，然后继续轮转。
       swtch(&(c->scheduler), p->context);
+      // 切换到调度器的页表？？？
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    // 当找不到可运行的线程时，必须释放锁
     release(&ptable.lock);
 
   }
@@ -396,14 +404,18 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
+  // 保存当前进程的上下文并切换到调度器线程
+  // 在下次被重新唤醒后从此处开始执行？？？
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
 }
 
 // Give up the CPU for one scheduling round.
+// 主动让出 CPU 时间片
 void
 yield(void)
 {
+  // 获得进程表的锁
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();
@@ -450,16 +462,18 @@ sleep(void *chan, struct spinlock *lk)
   // guaranteed that we won't miss any wakeup
   // (wakeup runs with ptable.lock locked),
   // so it's okay to release lk.
+  // 当 lk 即 lock 的情况下直接跳过
   if(lk != &ptable.lock){  //DOC: sleeplock0
     acquire(&ptable.lock);  //DOC: sleeplock1
     release(lk);
   }
   // Go to sleep.
+  // 之后 wakeup 会唤醒 p->chan == chan 的线程
   p->chan = chan;
   p->state = SLEEPING;
 
   sched();
-
+  // 被唤醒后从此处开始继续执行
   // Tidy up.
   p->chan = 0;
 
@@ -503,6 +517,7 @@ kill(int pid)
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+      // 让内核来终结掉该子进程（在子进程进入内核并返回时，内核会检查子进程的状态）
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)

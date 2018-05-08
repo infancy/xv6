@@ -45,6 +45,8 @@ fetchstr(uint addr, char **pp)
   return -1;
 }
 
+// 工具函数 argint、argptr 和 argstr 获得第 n 个系统调用参数，他们分别用于获取整数，指针和字符串起始地址
+
 // Fetch the nth 32-bit system call argument.
 int
 argint(int n, int *ip)
@@ -134,8 +136,10 @@ syscall(void)
   int num;
   struct proc *curproc = myproc();
 
+  // 取得系统调用号（系统启动后第一个系统调用是 sys_exec
   num = curproc->tf->eax;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // 调用函数并将返回值保存在 tf->eax 里，在中断返回后将 tf->eax 加载到 eax 里
     curproc->tf->eax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n",

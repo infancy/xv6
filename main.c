@@ -36,9 +36,10 @@ main(void)
   tvinit();        // trap vectors
   binit();         // buffer cache
   fileinit();      // file table
+  // 初始化磁盘驱动程序
   ideinit();       // disk 
   startothers();   // start other processors
-
+  // kinit1 分配 2GB+end ~ 2GB+4MB 的不需要锁的内存，kinit2 分配 2GB+4MB ~ 2GB+224MB 的内存
   kinit2(P2V(4*1024*1024), P2V(PHYSTOP)); // must come after startothers()
   // 初始化（设置）第一个进程
   userinit();      // first user process

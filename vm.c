@@ -165,6 +165,7 @@ switchkvm(void)
   lcr3(V2P(kpgdir));   // switch to the kernel page table
 }
 
+// 把用户进程的内核栈顶地址存入任务段描述符中
 // Switch TSS and h/w page table to correspond to process p.
 void
 switchuvm(struct proc *p)

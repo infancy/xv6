@@ -28,13 +28,16 @@ acquire(struct spinlock *lk)
   if(holding(lk))
     panic("acquire");
 
+  // xchg 指令由硬件保证其原子性
   // The xchg is atomic.
+  // 如果锁已经被持有了，lk->locked 就已经为1了，故 xchg 会返回1然后继续循环
   while(xchg(&lk->locked, 1) != 0)
     ;
 
   // Tell the C compiler and the processor to not move loads or stores
   // past this point, to ensure that the critical section's memory
   // references happen after the lock is acquired.
+  // 告诉编译器和处理器不要在这里进行加载或存储，以保证临界区的内存引用发生在获得锁之后
   __sync_synchronize();
 
   // Record info about lock acquisition for debugging.
@@ -42,6 +45,7 @@ acquire(struct spinlock *lk)
   getcallerpcs(&lk, lk->pcs);
 }
 
+// 先清除调试信息，再释放锁
 // Release the lock.
 void
 release(struct spinlock *lk)
@@ -92,7 +96,7 @@ holding(struct spinlock *lock)
   return lock->locked && lock->cpu == mycpu();
 }
 
-
+// 除了屏蔽、开启中断外，还做了计数工作
 // Pushcli/popcli are like cli/sti except that they are matched:
 // it takes two popcli to undo two pushcli.  Also, if interrupts
 // are off, then pushcli, popcli leaves them off.

@@ -19,8 +19,12 @@ tvinit(void)
 {
   int i;
 
+  // 设置 idt 表中的 256 个表项
   for(i = 0; i < 256; i++)
     SETGATE(idt[i], 0, SEG_KCODE<<3, vectors[i], 0);
+  // 另外设置 sys_call
+  // 传递第二个参数值为 1，使得 xv6 在处理系统调用时可以接受中断
+  // 设置系统调用门的权限为 DPL_USER，这使得用户程序可以通过 int 指令产生一个内陷
   SETGATE(idt[T_SYSCALL], 1, SEG_KCODE<<3, vectors[T_SYSCALL], DPL_USER);
 
   initlock(&tickslock, "time");
@@ -36,6 +40,7 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  // 如果是系统调用
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();

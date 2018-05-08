@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "buf.h": "c",
+        "proc.h": "c",
+        "memlayout.h": "c",
+        "xlocale": "c"
+    }
+}
