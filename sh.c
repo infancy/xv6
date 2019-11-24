@@ -19,7 +19,6 @@ struct cmd {
 };
 // (struct xx-cmd*)cmd
 
-
 struct execcmd {
   int type;
   char *argv[MAXARGS];
@@ -43,12 +42,14 @@ struct pipecmd {
   struct cmd *right;
 };
 
+// cat < input.txt | sort | uniq | cat > output.txt
 struct listcmd {
   int type;
   struct cmd *left;
   struct cmd *right;
 };
 
+// ... &
 struct backcmd {
   int type;
   struct cmd *cmd;
@@ -166,9 +167,10 @@ main(void)
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
-    // cd 必须由父进程执行
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Chdir must be called by the parent, not the child.
+
+      // gets 不读入 '\n'
       buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         printf(2, "cannot cd %s\n", buf+3);
@@ -270,9 +272,13 @@ backcmd(struct cmd *subcmd)
 //PAGEBREAK!
 // Parsing
 
+// char **ps 代表指向某个字符串的指针 的地址, char *es 代表指向某个字符串结尾的指针
+
 char whitespace[] = " \t\r\n\v";
 char symbols[] = "<|>&;()";
 
+// TODO
+// e.g. "  >> abc def " => *q -> '>'， *eq -> ' '，即提取 ">>" 这个符号；将 *ps 指向 'a'，即下一个 token；最后返回 '+'
 int
 gettoken(char **ps, char *es, char **q, char **eq)
 {
@@ -282,8 +288,10 @@ gettoken(char **ps, char *es, char **q, char **eq)
   s = *ps;
   while(s < es && strchr(whitespace, *s))
     s++;
+
   if(q)
     *q = s;
+
   ret = *s;
   switch(*s){
   case 0:
@@ -309,12 +317,14 @@ gettoken(char **ps, char *es, char **q, char **eq)
       s++;
     break;
   }
+
   if(eq)
     *eq = s;
 
   while(s < es && strchr(whitespace, *s))
     s++;
   *ps = s;
+
   return ret;
 }
 
@@ -324,9 +334,12 @@ peek(char **ps, char *es, char *toks)
   char *s;
 
   s = *ps;
+  // 先去掉空白符，再开始搜索 toks
+  // 当 toks 为空时，则相当于 clear whitespace
   while(s < es && strchr(whitespace, *s))
     s++;
   *ps = s;
+  // toks 是否匹配 *s
   return *s && strchr(toks, *s);
 }
 
@@ -344,11 +357,13 @@ parsecmd(char *s)
   // end of string
   es = s + strlen(s);
   cmd = parseline(&s, es);
+  // 去掉空白符
   peek(&s, es, "");
   if(s != es){
     printf(2, "leftovers: %s\n", s);
     panic("syntax");
   }
+  // 清空 cmd
   nulterminate(cmd);
   return cmd;
 }
@@ -383,12 +398,13 @@ parsepipe(char **ps, char *es)
   return cmd;
 }
 
+// redirect
 struct cmd*
 parseredirs(struct cmd *cmd, char **ps, char *es)
 {
   int tok;
   char *q, *eq;
-
+  // cat < file0 < file1
   while(peek(ps, es, "<>")){
     tok = gettoken(ps, es, 0, 0);
     if(gettoken(ps, es, &q, &eq) != 'a')
@@ -439,7 +455,10 @@ parseexec(char **ps, char *es)
   cmd = (struct execcmd*)ret;
 
   argc = 0;
+  
+  // ???
   ret = parseredirs(ret, ps, es);
+
   while(!peek(ps, es, "|)&;")){
     if((tok=gettoken(ps, es, &q, &eq)) == 0)
       break;
@@ -458,6 +477,8 @@ parseexec(char **ps, char *es)
 }
 
 // NUL-terminate all the counted strings.
+// 已经完成了命令的解析，将字符串结尾置 '\0'
+// "cat<file0<file1" => "cat\0file0\0file1"
 struct cmd*
 nulterminate(struct cmd *cmd)
 {

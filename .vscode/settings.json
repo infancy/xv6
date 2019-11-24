@@ -3,6 +3,9 @@
         "buf.h": "c",
         "proc.h": "c",
         "memlayout.h": "c",
-        "xlocale": "c"
+        "xlocale": "c",
+        "fcntl.h": "c",
+        "user.h": "c",
+        "istream": "c"
     }
 }
