@@ -93,7 +93,11 @@ getcallerpcs(void *v, uint pcs[])
 int
 holding(struct spinlock *lock)
 {
-  return lock->locked && lock->cpu == mycpu();
+  int r;
+  pushcli();
+  r = lock->locked && lock->cpu == mycpu();
+  popcli();
+  return r;
 }
 
 // 除了屏蔽、开启中断外，还做了计数工作
